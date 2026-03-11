@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://your-backend-app.onrender.com/api";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://stockflow-backend-a1it.onrender.com/api";
 
 export const api = axios.create({ baseURL: BASE_URL });
 
