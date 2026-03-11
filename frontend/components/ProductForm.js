@@ -83,7 +83,7 @@ export default function ProductForm({ initialData = {}, onSubmit, onCancel, load
     onSubmit({
       name:         form.name.trim(),
       sku:          form.sku.trim().toUpperCase(),
-      description:  form.description.trim() || null,
+      description:  form.description?.trim() || null,
       quantity:     Number(form.quantity),
       costPrice:    form.costPrice    !== "" ? Number(form.costPrice)    : null,
       sellingPrice: form.sellingPrice !== "" ? Number(form.sellingPrice) : null,
