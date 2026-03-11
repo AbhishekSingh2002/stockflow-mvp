@@ -17,10 +17,13 @@ export default function Login() {
     setLoading(true);
     try {
       const { data } = await authApi.login(form);
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
       router.push("/dashboard");
     } catch (err) {
+      console.error("Login error:", err);
       setError(err.response?.data?.error || "Login failed");
     } finally {
       setLoading(false);
