@@ -1,79 +1,53 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/router";
-import { productsApi, settingsApi } from "../services/api";
-import Navbar from "../components/Navbar";
-import ProductTable from "../components/ProductTable";
-import ProductForm from "../components/ProductForm";
+import { financialApi } from "../services/api";
 
-// ── Toast ─────────────────────────────────────────────────────
-function Toast({ toast }) {
-  if (!toast) return null;
-  const isError = toast.type === "error";
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: "1rem",
-        right: "1rem",
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5rem",
-        background: isError ? "#dc2626" : "#16a34a",
-        color: "#fff",
-        padding: "0.65rem 1rem",
-        borderRadius: "10px",
-        fontSize: "0.875rem",
-        fontWeight: 500,
-        boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
-        animation: "fadeIn 0.2s ease",
-      }}
-    >
-      <span>{isError ? "✕" : "✓"}</span>
-      {toast.msg}
-    </div>
-  );
-}
-
-// ── Page ──────────────────────────────────────────────────────
-export default function Products() {
+export default function FinancialRecords() {
   const router = useRouter();
-  const [products,          setProducts]          = useState([]);
-  const [defaultThreshold,  setDefaultThreshold]  = useState(5);
-  const [search,            setSearch]            = useState("");
-  const [loading,           setLoading]           = useState(true);
-  const [saving,            setSaving]            = useState(false);
-  const [showForm,          setShowForm]          = useState(false);
-  const [editingProduct,    setEditingProduct]    = useState(null);
-  const [toast,             setToast]             = useState(null);
-  const [user,              setUser]              = useState(null);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [user, setUser] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({
+    type: "",
+    category: "",
+    startDate: "",
+    endDate: ""
+  });
 
   const notify = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchProducts = useCallback(async () => {
+  const fetchRecords = useCallback(async () => {
     try {
-      const [prodRes, settingsRes] = await Promise.all([
-        productsApi.list(search),
-        settingsApi.get(),
-      ]);
-      setProducts(prodRes.data);
-      setDefaultThreshold(settingsRes.data.defaultLowStockThreshold);
+      setLoading(true);
+      const params = { ...filters };
+      if (search) params.search = search;
+      
+      const response = await financialApi.list(params);
+      setRecords(response.data.records);
     } catch {
       router.replace("/login");
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, filters]);
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) { router.replace("/login"); return; }
+    if (!localStorage.getItem("token")) { 
+      router.replace("/login"); 
+      return; 
+    }
     const stored = localStorage.getItem("user");
     if (stored) setUser(JSON.parse(stored));
-    fetchProducts();
-  }, [fetchProducts]);
+    fetchRecords();
+  }, [fetchRecords]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -84,12 +58,12 @@ export default function Products() {
   const handleCreate = async (formData) => {
     setSaving(true);
     try {
-      await productsApi.create(formData);
-      notify("Product created!");
+      await financialApi.create(formData);
+      notify("Transaction created!");
       setShowForm(false);
-      fetchProducts();
+      fetchRecords();
     } catch (err) {
-      notify(err.response?.data?.error || "Failed to create product", "error");
+      notify(err.response?.data?.error || "Failed to create transaction", "error");
     } finally {
       setSaving(false);
     }
@@ -98,187 +72,355 @@ export default function Products() {
   const handleUpdate = async (formData) => {
     setSaving(true);
     try {
-      await productsApi.update(editingProduct.id, formData);
-      notify("Product updated!");
-      setEditingProduct(null);
-      fetchProducts();
+      await financialApi.update(editingRecord.id, formData);
+      notify("Transaction updated!");
+      setEditingRecord(null);
+      fetchRecords();
     } catch (err) {
-      notify(err.response?.data?.error || "Failed to update product", "error");
+      notify(err.response?.data?.error || "Failed to update transaction", "error");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this transaction?")) return;
+    
     try {
-      await productsApi.remove(id);
-      notify("Product deleted");
-      fetchProducts();
+      await financialApi.remove(id);
+      notify("Transaction deleted");
+      fetchRecords();
     } catch {
-      notify("Failed to delete product", "error");
+      notify("Failed to delete transaction", "error");
     }
   };
 
-  const handleAdjust = async (id, delta) => {
-    try {
-      await productsApi.adjustStock(id, delta);
-      notify(`Stock adjusted by ${delta > 0 ? "+" : ""}${delta}`);
-      fetchProducts();
-    } catch (err) {
-      notify(err.response?.data?.error || "Failed to adjust stock", "error");
-    }
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
   };
 
-  const openCreate = () => { setShowForm(true); setEditingProduct(null); };
-  const closeForm  = () => { setShowForm(false); setEditingProduct(null); };
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const openCreate = () => { setShowForm(true); setEditingRecord(null); };
+  const closeForm = () => { setShowForm(false); setEditingRecord(null); };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)" }}>
-      <Navbar activePage="products" user={user} onLogout={handleLogout} />
-      <Toast toast={toast} />
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-xl font-bold text-gray-900">💰 FinanceFlow</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {user?.email} • {user?.role}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-red-600 hover:text-red-800"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <main style={{ maxWidth: "1100px", margin: "0 auto", padding: "2rem 1.5rem", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-
-        {/* ── Page header ── */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--foreground)", margin: 0 }}>Products</h1>
-            <p style={{ fontSize: "0.875rem", color: "var(--muted)", marginTop: "0.3rem", marginBottom: 0 }}>
-              Manage your inventory — click a quantity to adjust stock inline.
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900">Financial Records</h1>
+            <p className="text-gray-600">Manage your income and expense transactions</p>
           </div>
           <button
             onClick={openCreate}
-            style={{
-              background: "var(--primary)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "9px",
-              padding: "0.55rem 1.1rem",
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.35rem",
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--primary-hover)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--primary)"; }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium"
           >
-            + Add Product
+            + Add Transaction
           </button>
         </div>
 
-        {/* ── Search bar ── */}
-        <div style={{ position: "relative", maxWidth: "340px" }}>
-          <span style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--muted)", fontSize: "0.9rem", pointerEvents: "none" }}>🔍</span>
-          <input
-            type="text"
-            placeholder="Search by name or SKU…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: "100%",
-              background: "var(--surface)",
-              color: "var(--foreground)",
-              border: "1px solid var(--border)",
-              borderRadius: "9px",
-              padding: "0.5rem 0.75rem 0.5rem 2.2rem",
-              fontSize: "0.875rem",
-              outline: "none",
-              transition: "border-color 0.15s, box-shadow 0.15s",
-            }}
-            onFocus={(e) => { e.target.style.borderColor = "var(--primary)"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
-            onBlur={(e)  => { e.target.style.borderColor = "var(--border)"; e.target.style.boxShadow = "none"; }}
-          />
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <input
+                type="text"
+                placeholder="Search description..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <select
+                value={filters.type}
+                onChange={(e) => setFilters({...filters, type: e.target.value})}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Types</option>
+                <option value="INCOME">Income</option>
+                <option value="EXPENSE">Expense</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select
+                value={filters.category}
+                onChange={(e) => setFilters({...filters, category: e.target.value})}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Categories</option>
+                <option value="SALARY">Salary</option>
+                <option value="RENT">Rent</option>
+                <option value="UTILITIES">Utilities</option>
+                <option value="FOOD">Food</option>
+                <option value="TRANSPORT">Transport</option>
+                <option value="ENTERTAINMENT">Entertainment</option>
+                <option value="HEALTHCARE">Healthcare</option>
+                <option value="EDUCATION">Education</option>
+                <option value="INVESTMENT">Investment</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
         </div>
 
-        {/* ── Form panel (slide in) ── */}
-        {(showForm || editingProduct) && (
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "14px",
-              padding: "1.5rem 1.75rem",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem" }}>
-              <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--foreground)", margin: 0 }}>
-                {editingProduct ? "✏️ Edit Product" : "➕ New Product"}
-              </h2>
+        {/* Records Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center">
+                      <div className="text-gray-500">Loading...</div>
+                    </td>
+                  </tr>
+                ) : records.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-12 text-center">
+                      <div className="text-gray-500">No transactions found</div>
+                    </td>
+                  </tr>
+                ) : (
+                  records.map((record) => (
+                    <tr key={record.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatDate(record.date)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {record.description || 'No description'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {record.category}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          record.type === 'INCOME' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {record.type}
+                        </span>
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
+                        record.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {record.type === 'INCOME' ? '+' : '-'}
+                        {formatCurrency(record.amount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <button
+                          onClick={() => setEditingRecord(record)}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-md shadow-lg ${
+          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+        }`}>
+          <span>{toast.type === 'error' ? '✕' : '✓'}</span>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Form Modal */}
+      {(showForm || editingRecord) && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                {editingRecord ? 'Edit Transaction' : 'Add Transaction'}
+              </h3>
               <button
                 onClick={closeForm}
-                style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "1.1rem", lineHeight: 1, padding: "0.2rem" }}
+                className="text-gray-400 hover:text-gray-600"
               >
                 ✕
               </button>
             </div>
-            <ProductForm
-              initialData={editingProduct || {}}
-              onSubmit={editingProduct ? handleUpdate : handleCreate}
-              onCancel={closeForm}
-              loading={saving}
-            />
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = {
+                amount: parseFloat(e.target.amount.value),
+                type: e.target.type.value,
+                category: e.target.category.value,
+                date: e.target.date.value,
+                description: e.target.description.value,
+                notes: e.target.notes.value
+              };
+              
+              if (editingRecord) {
+                handleUpdate(formData);
+              } else {
+                handleCreate(formData);
+              }
+            }}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    defaultValue={editingRecord?.amount || ''}
+                    required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                  <select
+                    name="type"
+                    defaultValue={editingRecord?.type || ''}
+                    required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="">Select Type</option>
+                    <option value="INCOME">Income</option>
+                    <option value="EXPENSE">Expense</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    name="category"
+                    defaultValue={editingRecord?.category || ''}
+                    required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="">Select Category</option>
+                    <option value="SALARY">Salary</option>
+                    <option value="RENT">Rent</option>
+                    <option value="UTILITIES">Utilities</option>
+                    <option value="FOOD">Food</option>
+                    <option value="TRANSPORT">Transport</option>
+                    <option value="ENTERTAINMENT">Entertainment</option>
+                    <option value="HEALTHCARE">Healthcare</option>
+                    <option value="EDUCATION">Education</option>
+                    <option value="INVESTMENT">Investment</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    name="date"
+                    defaultValue={editingRecord?.date || ''}
+                    required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <input
+                    type="text"
+                    name="description"
+                    defaultValue={editingRecord?.description || ''}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    name="notes"
+                    defaultValue={editingRecord?.notes || ''}
+                    rows="3"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-md"
+                >
+                  {saving ? 'Saving...' : (editingRecord ? 'Update' : 'Create')}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-
-        {/* ── Products table ── */}
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "14px",
-            overflow: "hidden",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-          }}
-        >
-          {/* Table header row */}
-          <div
-            style={{
-              padding: "1rem 1.25rem",
-              borderBottom: "1px solid var(--border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--foreground)" }}>
-              All Products
-            </span>
-            <span
-              style={{
-                background: "var(--background)",
-                border: "1px solid var(--border)",
-                borderRadius: "99px",
-                padding: "0.15rem 0.6rem",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "var(--muted)",
-              }}
-            >
-              {products.length} {products.length === 1 ? "item" : "items"}
-            </span>
-          </div>
-
-          {loading ? (
-            <div style={{ padding: "3rem", textAlign: "center", color: "var(--muted)", fontSize: "0.9rem" }}>
-              Loading products…
-            </div>
-          ) : (
-            <ProductTable
-              products={products}
-              defaultThreshold={defaultThreshold}
-              onEdit={(p) => { setEditingProduct(p); setShowForm(false); }}
-              onDelete={handleDelete}
-              onAdjust={handleAdjust}
-            />
-          )}
         </div>
-      </main>
+      )}
     </div>
   );
 }

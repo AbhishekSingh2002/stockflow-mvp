@@ -1,26 +1,59 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { settingsApi } from "../services/api";
-import Navbar from "../components/Navbar";
+import { usersApi } from "../services/api";
 
-export default function Settings() {
+export default function UserManagement() {
   const router = useRouter();
-  const [threshold, setThreshold] = useState("");
-  const [loading,   setLoading]   = useState(true);
-  const [saving,    setSaving]    = useState(false);
-  const [message,   setMessage]   = useState(null);
-  const [user,      setUser]      = useState(null);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [user, setUser] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({
+    role: "",
+    status: ""
+  });
+
+  const notify = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const params = { ...filters };
+      if (search) params.search = search;
+      
+      const response = await usersApi.list(params);
+      setUsers(response.data.users);
+    } catch {
+      router.replace("/login");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) { router.replace("/login"); return; }
+    if (!localStorage.getItem("token")) { 
+      router.replace("/login"); 
+      return; 
+    }
     const stored = localStorage.getItem("user");
-    if (stored) setUser(JSON.parse(stored));
-
-    settingsApi
-      .get()
-      .then((res) => setThreshold(res.data.defaultLowStockThreshold))
-      .catch(() => router.replace("/login"))
-      .finally(() => setLoading(false));
+    if (stored) {
+      const userData = JSON.parse(stored);
+      setUser(userData);
+      
+      // Only admins can access this page
+      if (userData.role !== 'ADMIN') {
+        router.push("/dashboard");
+        return;
+      }
+    }
+    fetchUsers();
   }, []);
 
   const handleLogout = () => {
@@ -29,226 +62,314 @@ export default function Settings() {
     router.push("/login");
   };
 
-  const handleSave = async () => {
-    const value = Number(threshold);
-    if (isNaN(value) || value < 0) {
-      return setMessage({ text: "Must be a non-negative number", type: "error" });
-    }
+  const handleCreate = async (formData) => {
     setSaving(true);
     try {
-      await settingsApi.update({ defaultLowStockThreshold: value });
-      setMessage({ text: "Settings saved successfully!", type: "success" });
-    } catch {
-      setMessage({ text: "Failed to save settings", type: "error" });
+      await usersApi.create(formData);
+      notify("User created!");
+      setShowForm(false);
+      fetchUsers();
+    } catch (err) {
+      notify(err.response?.data?.error || "Failed to create user", "error");
     } finally {
       setSaving(false);
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
+  const handleUpdate = async (formData) => {
+    setSaving(true);
+    try {
+      await usersApi.update(editingUser.id, formData);
+      notify("User updated!");
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err) {
+      notify(err.response?.data?.error || "Failed to update user", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    
+    try {
+      await usersApi.remove(id);
+      notify("User deleted");
+      fetchUsers();
+    } catch {
+      notify("Failed to delete user", "error");
+    }
+  };
+
+  const openCreate = () => { setShowForm(true); setEditingUser(null); };
+  const closeForm = () => { setShowForm(false); setEditingUser(null); };
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--background)" }}>
-      <Navbar activePage="settings" user={user} onLogout={handleLogout} />
-
-      <main style={{ maxWidth: "1100px", margin: "0 auto", padding: "2rem 1.5rem", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-
-        {/* ── Page header ── */}
-        <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--foreground)", margin: 0 }}>Settings</h1>
-          <p style={{ fontSize: "0.875rem", color: "var(--muted)", marginTop: "0.3rem", marginBottom: 0 }}>
-            Configure global defaults for your inventory.
-          </p>
-        </div>
-
-        {/* ── Settings grid ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "1.5rem", alignItems: "start" }}>
-
-          {/* Left: section nav / labels */}
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "14px",
-              overflow: "hidden",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-            }}
-          >
-            {[
-              { label: "Inventory Defaults", icon: "📦", active: true },
-            ].map(({ label, icon, active }) => (
-              <div
-                key={label}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.65rem",
-                  padding: "0.85rem 1.1rem",
-                  cursor: "pointer",
-                  background: active ? "rgba(37,99,235,0.07)" : "transparent",
-                  borderLeft: active ? "3px solid var(--primary)" : "3px solid transparent",
-                  transition: "background 0.15s",
-                }}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-xl font-bold text-gray-900">💰 FinanceFlow</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {user?.email} • {user?.role}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-red-600 hover:text-red-800"
               >
-                <span style={{ fontSize: "1rem" }}>{icon}</span>
-                <span
-                  style={{
-                    fontSize: "0.875rem",
-                    fontWeight: active ? 600 : 400,
-                    color: active ? "var(--primary)" : "var(--muted)",
-                  }}
-                >
-                  {label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Right: settings card */}
-          <div
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "14px",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-              overflow: "hidden",
-            }}
-          >
-            {/* Card header */}
-            <div style={{ padding: "1.1rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
-              <h2 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--foreground)", margin: 0 }}>
-                📦 Inventory Defaults
-              </h2>
-              <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.2rem", marginBottom: 0 }}>
-                These values apply globally when a product has no individual setting.
-              </p>
-            </div>
-
-            {/* Card body */}
-            <div style={{ padding: "1.5rem" }}>
-              {loading ? (
-                <p style={{ color: "var(--muted)", fontSize: "0.875rem" }}>Loading…</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-
-                  {/* Field */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <label
-                      style={{
-                        fontSize: "0.78rem",
-                        fontWeight: 600,
-                        color: "var(--muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      Default Low Stock Threshold
-                    </label>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                      <input
-                        type="number"
-                        min={0}
-                        value={threshold}
-                        onChange={(e) => setThreshold(e.target.value)}
-                        style={{
-                          width: "120px",
-                          background: "var(--background)",
-                          color: "var(--foreground)",
-                          border: "1px solid var(--border)",
-                          borderRadius: "8px",
-                          padding: "0.5rem 0.75rem",
-                          fontSize: "1rem",
-                          fontWeight: 600,
-                          outline: "none",
-                          textAlign: "center",
-                          transition: "border-color 0.15s, box-shadow 0.15s",
-                        }}
-                        onFocus={(e) => { e.target.style.borderColor = "var(--primary)"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
-                        onBlur={(e)  => { e.target.style.borderColor = "var(--border)"; e.target.style.boxShadow = "none"; }}
-                      />
-                      <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>units</span>
-                    </div>
-
-                    <p style={{ fontSize: "0.78rem", color: "var(--muted)", margin: 0 }}>
-                      A product is flagged as "Low Stock" when its quantity is ≤ this value.
-                    </p>
-                  </div>
-
-                  {/* Divider */}
-                  <div style={{ borderTop: "1px solid var(--border)" }} />
-
-                  {/* Save row */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      style={{
-                        background: "var(--primary)",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "8px",
-                        padding: "0.5rem 1.25rem",
-                        fontSize: "0.875rem",
-                        fontWeight: 600,
-                        cursor: saving ? "not-allowed" : "pointer",
-                        opacity: saving ? 0.6 : 1,
-                        transition: "background 0.15s, opacity 0.15s",
-                      }}
-                      onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = "var(--primary-hover)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "var(--primary)"; }}
-                    >
-                      {saving ? "Saving…" : "Save Changes"}
-                    </button>
-
-                    {message && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.4rem",
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                          color: message.type === "error" ? "#dc2626" : "#16a34a",
-                        }}
-                      >
-                        <span>{message.type === "error" ? "✕" : "✓"}</span>
-                        {message.text}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                Logout
+              </button>
             </div>
           </div>
         </div>
+      </header>
 
-        {/* ── Info card ── */}
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: "14px",
-            padding: "1.1rem 1.5rem",
-            display: "flex",
-            gap: "0.75rem",
-            alignItems: "flex-start",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-          }}
-        >
-          <span style={{ fontSize: "1.1rem", flexShrink: 0, marginTop: "0.05rem" }}>💡</span>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--foreground)", margin: "0 0 0.2rem" }}>
-              How thresholds work
-            </p>
-            <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
-              Each product can have its own low-stock threshold set on the Products page.
-              If a product has no individual threshold, this global default is used.
-              Low-stock products appear in the dashboard overview automatically.
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+            <p className="text-gray-600">Manage user accounts and permissions</p>
+          </div>
+          <button
+            onClick={openCreate}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium"
+          >
+            + Add User
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+              <input
+                type="text"
+                placeholder="Search by email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <select
+                value={filters.role}
+                onChange={(e) => setFilters({...filters, role: e.target.value})}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Roles</option>
+                <option value="VIEWER">Viewer</option>
+                <option value="ANALYST">Analyst</option>
+                <option value="ADMIN">Admin</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters({...filters, status: e.target.value})}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Status</option>
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
           </div>
         </div>
 
+        {/* Users Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center">
+                      <div className="text-gray-500">Loading...</div>
+                    </td>
+                  </tr>
+                ) : users.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center">
+                      <div className="text-gray-500">No users found</div>
+                    </td>
+                  </tr>
+                ) : (
+                  users.map((userItem) => (
+                    <tr key={userItem.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {userItem.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          userItem.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
+                          userItem.role === 'ANALYST' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {userItem.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          userItem.status === 'ACTIVE' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {userItem.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(userItem.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <button
+                          onClick={() => setEditingUser(userItem)}
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(userItem.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </main>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-md shadow-lg ${
+          toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'
+        }`}>
+          <span>{toast.type === 'error' ? '✕' : '✓'}</span>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Form Modal */}
+      {(showForm || editingUser) && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                {editingUser ? 'Edit User' : 'Add User'}
+              </h3>
+              <button
+                onClick={closeForm}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = {
+                email: e.target.email.value,
+                password: e.target.password.value,
+                role: e.target.role.value,
+                status: e.target.status.value
+              };
+              
+              if (editingUser) {
+                handleUpdate(formData);
+              } else {
+                handleCreate(formData);
+              }
+            }}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    name="email"
+                    defaultValue={editingUser?.email || ''}
+                    required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <input
+                    type="password"
+                    name="password"
+                    defaultValue={editingUser?.password || ''}
+                    placeholder={editingUser ? "Leave blank to keep current password" : "Enter password"}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                  <select
+                    name="role"
+                    defaultValue={editingUser?.role || 'VIEWER'}
+                    required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="VIEWER">Viewer</option>
+                    <option value="ANALYST">Analyst</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    name="status"
+                    defaultValue={editingUser?.status || 'ACTIVE'}
+                    required
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-md"
+                >
+                  {saving ? 'Saving...' : (editingUser ? 'Update' : 'Create')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

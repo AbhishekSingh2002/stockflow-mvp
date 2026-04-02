@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://stockflow-backend-a1it.onrender.com/api";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 export const api = axios.create({ baseURL: BASE_URL });
 
@@ -45,9 +45,28 @@ export const productsApi = {
   remove: (id) => api.delete(`/products/${id}`),
 };
 
+// ── Financial Records ─────────────────────────────────────────────
+export const financialApi = {
+  list: (params = {}) => api.get("/financial-records", { params }),
+  get: (id) => api.get(`/financial-records/${id}`),
+  create: (data) => api.post("/financial-records", data),
+  update: (id, data) => api.put(`/financial-records/${id}`, data),
+  remove: (id) => api.delete(`/financial-records/${id}`),
+};
+
 // ── Dashboard ─────────────────────────────────────────────────
 export const dashboardApi = {
   get: () => api.get("/dashboard"),
+  getAnalytics: (params = {}) => api.get("/dashboard/analytics", { params }),
+};
+
+// ── User Management ─────────────────────────────────────────────
+export const usersApi = {
+  list: (params = {}) => api.get("/users", { params }),
+  get: (id) => api.get(`/users/${id}`),
+  create: (data) => api.post("/users", data),
+  update: (id, data) => api.put(`/users/${id}`, data),
+  remove: (id) => api.delete(`/users/${id}`),
 };
 
 // ── Settings ──────────────────────────────────────────────────

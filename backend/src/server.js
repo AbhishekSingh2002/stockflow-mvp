@@ -3,9 +3,9 @@ const express = require("express");
 const cors = require("cors");
 
 const authRoutes = require("./routes/authRoutes");
-const productRoutes = require("./routes/productRoutes");
-const dashboardRoutes = require("./routes/dashboardRoutes");
-const settingsRoutes = require("./routes/settingsRoutes");
+const financialRoutes = require("./routes/financialRoutes");
+const financeDashboardRoutes = require("./routes/financeDashboardRoutes");
+const userManagementRoutes = require("./routes/userManagementRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,9 +19,9 @@ app.use(express.json());
 
 // ── Routes ──────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/settings", settingsRoutes);
+app.use("/api/financial-records", financialRoutes);
+app.use("/api/dashboard", financeDashboardRoutes);
+app.use("/api/users", userManagementRoutes);
 
 // ── Health check ────────────────────────────────────────────
 app.get("/health", (_, res) => res.json({ status: "ok" }));
@@ -33,5 +33,5 @@ app.use((err, req, res, _next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ StockFlow backend running on http://localhost:${PORT}`);
+  console.log(`✅ Finance Data Processing Backend running on http://localhost:${PORT}`);
 });

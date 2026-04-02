@@ -34,8 +34,8 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-xl shadow-md w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">📦 StockFlow</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-gray-900">� FinanceFlow</h1>
+          <p className="text-gray-500 text-sm mt-1">Sign in to your finance dashboard</p>
         </div>
 
         {error && (
