@@ -43,7 +43,6 @@ exports.signup = async (req, res) => {
       await tx.settings.create({
         data: {
           organizationId: org.id,
-          defaultLowStockThreshold: 5,
         },
       });
 
@@ -55,6 +54,7 @@ exports.signup = async (req, res) => {
         userId: result.user.id,
         organizationId: result.org.id,
         email: result.user.email,
+        role: result.user.role,
       },
       JWT_SECRET,
       { expiresIn: "7d" }
@@ -106,6 +106,7 @@ exports.login = async (req, res) => {
         userId: user.id,
         organizationId: user.organizationId,
         email: user.email,
+        role: user.role,
       },
       JWT_SECRET,
       { expiresIn: "7d" }
@@ -117,6 +118,7 @@ exports.login = async (req, res) => {
         id: user.id,
         email: user.email,
         organizationName: user.organization.name,
+        role: user.role,
       },
     });
   } catch (err) {
@@ -143,6 +145,8 @@ exports.me = async (req, res) => {
       email: user.email,
       organizationName: user.organization.name,
       organizationId: user.organizationId,
+      role: user.role,
+      status: user.status,
     });
   } catch (err) {
     console.error("Me error:", err);
