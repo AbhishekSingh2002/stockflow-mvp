@@ -81,10 +81,12 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('Validation errors:', errors.array());
     return res.status(400).json({ errors: errors.array() });
   }
 
   const { email, password } = req.body;
+  console.log('Login attempt:', { email, passwordLength: password.length });
 
   try {
     const user = await prisma.user.findUnique({
@@ -92,15 +94,23 @@ exports.login = async (req, res) => {
       include: { organization: true },
     });
 
+    console.log('User found:', user ? `YES (${user.email})` : 'NO');
+
     if (!user) {
+      console.log('User not found in database');
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    console.log('Comparing password...');
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('Password match:', isMatch ? 'YES' : 'NO');
+    
     if (!isMatch) {
+      console.log('Password comparison failed');
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    console.log('Login successful, creating token...');
     const token = jwt.sign(
       {
         userId: user.id,
@@ -112,6 +122,7 @@ exports.login = async (req, res) => {
       { expiresIn: "7d" }
     );
 
+    console.log('Token created, sending response...');
     return res.json({
       token,
       user: {
