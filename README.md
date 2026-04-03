@@ -169,24 +169,52 @@ Open http://localhost:3000
 
 ```
 stockflow-mvp/
+├── .gitignore
+├── README.md
 ├── backend/
+│   ├── .env
+│   ├── package.json
+│   ├── package-lock.json
 │   ├── prisma/
 │   │   └── schema.prisma          # Database schema
-│   ├── src/
-│   │   ├── controllers/           # Route handlers
-│   │   ├── middleware/            # Auth middleware
-│   │   ├── routes/               # API routes
-│   │   ├── utils/                # Prisma client
-│   │   └── server.js             # Express server
-│   ├── .env                      # Environment variables
-│   └── package.json
+│   └── src/
+│       ├── controllers/           # Route handlers
+│       │   ├── authController.js
+│       │   ├── dashboardController.js
+│       │   ├── financeDashboardController.js
+│       │   ├── financialController.js
+│       │   ├── settingsController.js
+│       │   └── userManagementController.js
+│       ├── middleware/            # Auth middleware
+│       │   ├── authMiddleware.js
+│       │   └── roleMiddleware.js
+│       ├── routes/               # API routes
+│       │   ├── authRoutes.js
+│       │   ├── dashboardRoutes.js
+│       │   ├── financeDashboardRoutes.js
+│       │   ├── financialRoutes.js
+│       │   ├── settingsRoutes.js
+│       │   └── userManagementRoutes.js
+│       ├── utils/                # Prisma client & validation
+│       │   ├── prismaClient.js
+│       │   └── validation.js
+│       └── server.js             # Express server
 ├── frontend/
+│   ├── next.config.js
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── tailwind.config.js
 │   ├── pages/                    # Next.js pages
-│   ├── components/               # React components
+│   │   ├── _app.js
+│   │   ├── dashboard.js
+│   │   ├── index.js
+│   │   ├── login.js
+│   │   ├── settings.js
+│   │   └── signup.js
 │   ├── services/                 # API client
-│   ├── styles/                   # Global styles
-│   └── package.json
-└── README.md
+│   │   └── api.js
+│   └── styles/                   # Global styles
+│       └── globals.css
 ```
 
 ## 🚀 Quick Start
