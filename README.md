@@ -328,7 +328,6 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 2. **Database connection failed**
    - Check PostgreSQL is running
    - Verify credentials in `.env`
-   - Ensure database `stockflow_db` exists
 
 3. **Prisma schema errors**
    ```bash
