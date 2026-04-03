@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 5000;
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(cors({ 
-  origin: process.env.FRONTEND_URL || ["http://localhost:3000", "https://stockflow-mvp-six.vercel.app", "https://stockflow-2qcpuy0et-abhisheksingh2002s-projects.vercel.app"],
+  origin: process.env.FRONTEND_URL || ["http://localhost:3000", "https://stockflow-mvp-six.vercel.app", "https://stockflow-2qcpuy0et-abhisheksingh2002s-projects.vercel.app", "https://stockflow-ju2avldrk-abhisheksingh2002s-projects.vercel.app"],
   credentials: true
 }));
 app.use(express.json());
