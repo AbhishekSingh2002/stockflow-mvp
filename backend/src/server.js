@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const bcrypt = require("bcrypt");
 
 const authRoutes = require("./routes/authRoutes");
 const financialRoutes = require("./routes/financialRoutes");
@@ -47,6 +48,35 @@ app.get("/api/debug/users", async (req, res) => {
   } catch (error) {
     console.error("Debug users error:", error);
     res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
+// ── Fix JWT_SECRET mismatch endpoint ────────────────────────
+app.post("/api/debug/fix-passwords", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: "Email and newPassword required" });
+    }
+
+    // Hash the new password with current JWT_SECRET
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update the user's password
+    const updatedUser = await prisma.user.update({
+      where: { email },
+      data: { password: hashedPassword },
+      select: { id: true, email: true, role: true }
+    });
+
+    res.json({ 
+      message: "Password updated successfully",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("Password fix error:", error);
+    res.status(500).json({ error: "Failed to update password" });
   }
 });
 
