@@ -80,6 +80,36 @@ app.post("/api/debug/fix-passwords", async (req, res) => {
   }
 });
 
+// ── Update user role endpoint ─────────────────────────────────
+app.post("/api/debug/update-role", async (req, res) => {
+  try {
+    const { email, role } = req.body;
+    
+    if (!email || !role) {
+      return res.status(400).json({ error: "Email and role required" });
+    }
+
+    if (!['VIEWER', 'ANALYST', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ error: "Role must be VIEWER, ANALYST, or ADMIN" });
+    }
+
+    // Update the user's role
+    const updatedUser = await prisma.user.update({
+      where: { email },
+      data: { role },
+      select: { id: true, email: true, role: true }
+    });
+
+    res.json({ 
+      message: "Role updated successfully",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("Role update error:", error);
+    res.status(500).json({ error: "Failed to update role" });
+  }
+});
+
 // ── Global error handler ────────────────────────────────────
 app.use((err, req, res, _next) => {
   console.error("Unhandled error:", err);
