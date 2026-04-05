@@ -6,6 +6,7 @@ const authRoutes = require("./routes/authRoutes");
 const financialRoutes = require("./routes/financialRoutes");
 const financeDashboardRoutes = require("./routes/financeDashboardRoutes");
 const userManagementRoutes = require("./routes/userManagementRoutes");
+const prisma = require("./utils/prismaClient");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,6 +26,29 @@ app.use("/api/users", userManagementRoutes);
 
 // ── Health check ────────────────────────────────────────────
 app.get("/health", (_, res) => res.json({ status: "ok" }));
+
+// ── Debug endpoint to check users ────────────────────────────
+app.get("/api/debug/users", async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({ 
+      select: { 
+        id: true,
+        email: true, 
+        role: true,
+        status: true,
+        createdAt: true, 
+        organization: { select: { name: true } } 
+      }
+    });
+    res.json({ 
+      totalUsers: users.length,
+      users: users 
+    });
+  } catch (error) {
+    console.error("Debug users error:", error);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
 
 // ── Global error handler ────────────────────────────────────
 app.use((err, req, res, _next) => {
